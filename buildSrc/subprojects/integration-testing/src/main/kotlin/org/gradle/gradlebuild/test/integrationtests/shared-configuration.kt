@@ -37,10 +37,10 @@ fun Project.addDependenciesAndConfigurations(testType: TestType) {
     dependencies {
         "${prefix}TestCompile"(project(":internalIntegTesting"))
 
-        //so that implicit help tasks are available:
+        // so that implicit help tasks are available:
         "${prefix}TestRuntime"(project(":diagnostics"))
 
-        //So that the wrapper and init task are added when integTests are run via commandline
+        // So that the wrapper and init task are added when integTests are run via commandline
         "${prefix}TestRuntime"(project(":buildInit"))
     }
 }
@@ -78,7 +78,7 @@ fun Project.createTasks(sourceSet: SourceSet, testType: TestType) {
     val testTask = createTestTask(prefix + "Test", defaultExecuter, sourceSet, testType, Action {})
     // Create a variant of the test suite to force realization of component metadata
     if (testType == TestType.INTEGRATION) {
-        val forceRealizeTestTask = createTestTask(prefix + "ForceRealizeTest", defaultExecuter, sourceSet, testType, Action {
+        createTestTask(prefix + "ForceRealizeTest", defaultExecuter, sourceSet, testType, Action {
             systemProperties["org.gradle.integtest.force.realize.metadata"] = "true"
         })
     }
@@ -128,6 +128,7 @@ fun Project.configureIde(testType: TestType) {
     plugins.withType<IdeaPlugin> {
         idea {
             module {
+                testSourceDirs = testSourceDirs + sourceSet.java.srcDirs
                 testSourceDirs = testSourceDirs + sourceSet.groovy.srcDirs
                 testResourceDirs = testResourceDirs + sourceSet.resources.srcDirs
                 scopes["TEST"]!!["plus"]!!.apply {

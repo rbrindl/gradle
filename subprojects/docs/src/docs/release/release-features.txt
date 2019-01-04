@@ -1,2 +1,0 @@
- - Control which dependencies can be retrieved from which repositories
- - Production-ready configuration avoidance APIs

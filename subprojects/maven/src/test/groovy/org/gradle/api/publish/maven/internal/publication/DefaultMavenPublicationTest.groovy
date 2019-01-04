@@ -36,11 +36,11 @@ import org.gradle.api.internal.component.SoftwareComponentInternal
 import org.gradle.api.internal.component.UsageContext
 import org.gradle.api.internal.file.TestFiles
 import org.gradle.api.publish.internal.PublicationInternal
+import org.gradle.api.publish.internal.versionmapping.VersionMappingStrategyInternal
 import org.gradle.api.publish.maven.MavenArtifact
 import org.gradle.api.publish.maven.internal.publisher.MutableMavenProjectIdentity
 import org.gradle.api.tasks.TaskDependency
 import org.gradle.api.tasks.TaskOutputs
-import org.gradle.internal.reflect.DirectInstantiator
 import org.gradle.internal.typeconversion.NotationParser
 import org.gradle.test.fixtures.file.TestFile
 import org.gradle.test.fixtures.file.TestNameTestDirectoryProvider
@@ -334,6 +334,7 @@ class DefaultMavenPublicationTest extends Specification {
 
         and:
         projectDependency.excludeRules >> []
+        projectDependency.getAttributes() >> ImmutableAttributes.EMPTY
         projectDependencyResolver.resolve(ModuleVersionIdentifier, projectDependency) >> DefaultModuleVersionIdentifier.newId("pub-group", "pub-name", "pub-version")
 
         when:
@@ -480,10 +481,10 @@ class DefaultMavenPublicationTest extends Specification {
     }
 
     def createPublication() {
-        def instantiator = DirectInstantiator.INSTANCE
+        def instantiator = TestUtil.instantiatorFactory().decorateLenient()
         def objectFactory = TestUtil.objectFactory()
         def publication = new DefaultMavenPublication("pub-name", module, notationParser, instantiator, objectFactory, projectDependencyResolver, TestFiles.fileCollectionFactory(),
-            featurePreviews, AttributeTestUtil.attributesFactory(), CollectionCallbackActionDecorator.NOOP)
+            featurePreviews, AttributeTestUtil.attributesFactory(), CollectionCallbackActionDecorator.NOOP, Mock(VersionMappingStrategyInternal))
         publication.setPomGenerator(createArtifactGenerator(pomFile))
         publication.setModuleDescriptorGenerator(createArtifactGenerator(gradleMetadataFile))
         return publication

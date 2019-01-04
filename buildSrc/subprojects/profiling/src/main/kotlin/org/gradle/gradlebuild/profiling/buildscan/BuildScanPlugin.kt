@@ -18,9 +18,12 @@ package org.gradle.gradlebuild.profiling.buildscan
 import com.gradle.scan.plugin.BuildScanExtension
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.Task
 import org.gradle.api.plugins.quality.Checkstyle
 import org.gradle.api.plugins.quality.CodeNarc
 import org.gradle.api.reporting.Reporting
+import org.gradle.api.tasks.compile.AbstractCompile
+import org.gradle.build.ClasspathManifest
 import org.gradle.gradlebuild.BuildEnvironment.isCiServer
 import org.gradle.gradlebuild.BuildEnvironment.isTravis
 import org.gradle.internal.classloader.ClassLoaderHierarchyHasher
@@ -35,6 +38,7 @@ import kotlin.collections.component2
 import kotlin.collections.filter
 import kotlin.collections.forEach
 import org.gradle.kotlin.dsl.*
+import java.util.concurrent.atomic.AtomicBoolean
 
 
 const val serverUrl = "https://e.grdev.net"
@@ -54,6 +58,9 @@ open class BuildScanPlugin : Plugin<Project> {
     private
     lateinit var buildScan: BuildScanExtension
 
+    private
+    val cacheMissTagged = AtomicBoolean(false)
+
     override fun apply(project: Project): Unit = project.run {
         apply(plugin = "com.gradle.build-scan")
         buildScan = the()
@@ -63,6 +70,7 @@ open class BuildScanPlugin : Plugin<Project> {
 
         if (isCiServer && !isTravis) {
             extractAllReportsFromCI()
+            monitorUnexpectedCacheMisses()
         }
 
         extractCheckstyleAndCodenarcData()
@@ -70,10 +78,36 @@ open class BuildScanPlugin : Plugin<Project> {
     }
 
     private
+    fun Project.monitorUnexpectedCacheMisses() {
+        gradle.taskGraph.afterTask {
+            if (isCacheMiss() && !isExpectedCacheMiss() && isNotTaggedYet()) {
+                buildScan.tag("CACHE_MISS")
+            }
+        }
+    }
+
+    private
+    fun isNotTaggedYet() = cacheMissTagged.compareAndSet(false, true)
+
+    private
+    fun Task.isCacheMiss() = !state.skipped && isMonitoredForCacheMiss()
+
+    private
+    fun Task.isMonitoredForCacheMiss() = this is AbstractCompile || this is ClasspathManifest
+
+    private
+    fun Project.isExpectedCacheMiss() =
+    // Expected cache-miss:
+    // 1. compileAll is seed build
+    // 2. Gradleception which re-builds Gradle with a new Gradle version
+    // 3. buildScanPerformance test, which doesn't depend on compileAll
+        gradle.startParameter.taskNames.contains("compileAll")
+            || System.getenv("BUILD_TYPE_ID") in listOf("Enterprise_Master_Components_BuildScansPlugin_Performance_PerformanceLinux", "Gradle_Check_Gradleception")
+
+    private
     fun Project.extractCheckstyleAndCodenarcData() {
         gradle.taskGraph.afterTask {
             if (state.failure != null) {
-
                 if (this is Checkstyle && reports.xml.destination.exists()) {
                     val checkstyle = Jsoup.parse(reports.xml.destination.readText(), "", Parser.xmlParser())
                     val errors = checkstyle.getElementsByTag("file").flatMap { file ->

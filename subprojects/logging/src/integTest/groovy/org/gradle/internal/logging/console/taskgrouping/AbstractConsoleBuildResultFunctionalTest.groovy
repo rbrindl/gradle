@@ -97,7 +97,7 @@ BUILD SUCCESSFUL in \\d+s\\n?
         then:
         LogContent.of(result.output).removeAnsiChars().withNormalizedEol().matches """(?s).*build finished
 
-BUILD SUCCESSFUL in \\d+s
+BUILD SUCCESSFUL in \\d+s\\n?
 1 actionable task: 1 executed
 .*"""
     }
@@ -124,7 +124,7 @@ BUILD SUCCESSFUL in \\d+s
         // Check that the failure text appears either stdout or stderr
         def outputWithFailure = errorsShouldAppearOnStdout() ? failure.output : failure.error
         def outputWithoutFailure = errorsShouldAppearOnStdout() ? failure.error : failure.output
-        def outputWithFailureAndNoDebugging = LogContent.of(outputWithFailure).removeEmptyLines().removeAnsiChars().removeDebugPrefix().withNormalizedEol()
+        def outputWithFailureAndNoDebugging = LogContent.of(outputWithFailure).removeBlankLines().removeAnsiChars().removeDebugPrefix().withNormalizedEol()
 
         outputWithFailure.contains("Build failed with an exception.")
         outputWithFailureAndNoDebugging.contains("""

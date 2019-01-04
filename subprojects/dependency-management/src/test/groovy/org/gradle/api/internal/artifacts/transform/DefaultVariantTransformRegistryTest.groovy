@@ -87,7 +87,7 @@ class DefaultVariantTransformRegistryTest extends Specification {
         !outputFile.exists()
 
         when:
-        def transformed = registration.transformationStep.transform(TransformationSubject.initial(TEST_INPUT), dependenciesProvider).files
+        def transformed = registration.transformationStep.transform(TransformationSubject.initial(TEST_INPUT), dependenciesProvider).get().files
 
         then:
         transformed.size() == 1
@@ -126,7 +126,7 @@ class DefaultVariantTransformRegistryTest extends Specification {
         !outputFile.exists()
 
         when:
-        def transformed = registration.transformationStep.transform(TransformationSubject.initial(TEST_INPUT), dependenciesProvider).files
+        def transformed = registration.transformationStep.transform(TransformationSubject.initial(TEST_INPUT), dependenciesProvider).get().files
 
         then:
         transformed.collect { it.name } == ['OUTPUT_FILE', 'EXTRA_1', 'EXTRA_2']
@@ -149,12 +149,12 @@ class DefaultVariantTransformRegistryTest extends Specification {
         registry.registerTransform {
             it.from.attribute(TEST_ATTRIBUTE, "FROM")
             it.to.attribute(TEST_ATTRIBUTE, "TO")
-            it.artifactTransform(AbstractArtifactTransform)
+            it.artifactTransform(CannotConstructTransform)
         }
 
         then:
         1 * isolatableFactory.isolate([] as Object[]) >> new ArrayValueSnapshot(valueSnapshotArray)
-        1 * classLoaderHierarchyHasher.getClassLoaderHash(AbstractArtifactTransform.classLoader) >> HashCode.fromInt(123)
+        1 * classLoaderHierarchyHasher.getClassLoaderHash(CannotConstructTransform.classLoader) >> HashCode.fromInt(123)
 
         and:
         registry.transforms.size() == 1
@@ -164,8 +164,8 @@ class DefaultVariantTransformRegistryTest extends Specification {
         def result = registration.transformationStep.transform(TransformationSubject.initial(TEST_INPUT), dependenciesProvider)
 
         then:
-        def failure = result.failure
-        failure.message == "Could not create an instance of type $AbstractArtifactTransform.name."
+        def failure = result.failure.get()
+        failure.message == "Could not create an instance of type $CannotConstructTransform.name."
 
         and:
         interaction {
@@ -198,7 +198,7 @@ class DefaultVariantTransformRegistryTest extends Specification {
 
         when:
         def registration = registry.transforms.first()
-        def failure = registration.transformationStep.transform(TransformationSubject.initial(TEST_INPUT), dependenciesProvider).failure
+        def failure = registration.transformationStep.transform(TransformationSubject.initial(TEST_INPUT), dependenciesProvider).failure.get()
 
         then:
         failure instanceof ObjectInstantiationException
@@ -232,7 +232,7 @@ class DefaultVariantTransformRegistryTest extends Specification {
 
         when:
         def registration = registry.transforms.first()
-        def failure = registration.transformationStep.transform(TransformationSubject.initial(TEST_INPUT), dependenciesProvider).failure
+        def failure = registration.transformationStep.transform(TransformationSubject.initial(TEST_INPUT), dependenciesProvider).failure.get()
 
         then:
         failure.message == 'broken'
@@ -368,5 +368,14 @@ class DefaultVariantTransformRegistryTest extends Specification {
         }
     }
 
-    static abstract class AbstractArtifactTransform extends ArtifactTransform {}
+    static class CannotConstructTransform extends ArtifactTransform {
+        CannotConstructTransform() {
+            throw new RuntimeException("broken")
+        }
+
+        @Override
+        List<File> transform(File input) {
+            return []
+        }
+    }
 }

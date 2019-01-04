@@ -26,6 +26,7 @@ import org.gradle.nativeplatform.fixtures.app.CppAppWithLibraryAndOptionalFeatur
 import org.gradle.nativeplatform.fixtures.app.CppAppWithOptionalFeature
 import org.gradle.nativeplatform.fixtures.app.CppCompilerDetectingTestApp
 import org.gradle.nativeplatform.fixtures.app.SourceElement
+import spock.lang.Issue
 
 import static org.gradle.util.Matchers.containsText
 
@@ -403,7 +404,7 @@ class CppApplicationIntegrationTest extends AbstractCppIntegrationTest implement
             project(':app') {
                 apply plugin: 'cpp-application'
                 application {
-                    targetMachines = [machines.${currentHostOperatingSystemFamilyDsl}${currentHostArchitectureDsl}, machines.os('host-family')${currentHostArchitectureDsl}]
+                    targetMachines = [machines.${currentHostOperatingSystemFamilyDsl}, machines.os('host-family')]
                 }
                 dependencies {
                     implementation project(':hello')
@@ -412,7 +413,7 @@ class CppApplicationIntegrationTest extends AbstractCppIntegrationTest implement
             project(':hello') {
                 apply plugin: 'cpp-library'
                 library {
-                    targetMachines = [machines.${currentHostOperatingSystemFamilyDsl}${currentHostArchitectureDsl}, machines.os('host-family')${currentHostArchitectureDsl}]
+                    targetMachines = [machines.${currentHostOperatingSystemFamilyDsl}, machines.os('host-family')]
                 }
             }
         """
@@ -439,7 +440,7 @@ class CppApplicationIntegrationTest extends AbstractCppIntegrationTest implement
             project(':app') {
                 apply plugin: 'cpp-application'
                 application {
-                    targetMachines = [machines.${currentHostOperatingSystemFamilyDsl}${currentHostArchitectureDsl}]
+                    targetMachines = [machines.${currentHostOperatingSystemFamilyDsl}]
                 }
                 dependencies {
                     implementation project(':hello')
@@ -567,12 +568,13 @@ class CppApplicationIntegrationTest extends AbstractCppIntegrationTest implement
         expect:
         fails ":app:assemble"
 
-        failure.assertHasCause """Unable to find a matching variant of project :hello: Variant 'cppApiElements':
-  - Required org.gradle.native.architecture '${currentArchitecture}' but no value provided.
-  - Required org.gradle.native.debuggable 'true' but no value provided.
-  - Required org.gradle.native.operatingSystem '${currentOsFamilyName}' but no value provided.
-  - Required org.gradle.native.optimized 'false' but no value provided.
-  - Required org.gradle.usage 'native-runtime' and found incompatible value 'cplusplus-api'."""
+        failure.assertHasCause """Unable to find a matching variant of project :hello:
+  - Variant 'cppApiElements':
+      - Required org.gradle.native.architecture '${currentArchitecture}' but no value provided.
+      - Required org.gradle.native.debuggable 'true' but no value provided.
+      - Required org.gradle.native.operatingSystem '${currentOsFamilyName}' but no value provided.
+      - Required org.gradle.native.optimized 'false' but no value provided.
+      - Required org.gradle.usage 'native-runtime' and found incompatible value 'cplusplus-api'."""
     }
 
     def "can compile and link against a static library"() {
@@ -599,7 +601,7 @@ class CppApplicationIntegrationTest extends AbstractCppIntegrationTest implement
         expect:
         succeeds ":app:assemble"
 
-        result.assertTasksExecuted(compileAndStaticLinkTasks([':hello'], debug), compileAndLinkTasks([':app'], debug), installTaskDebug(':app'), ":app:assemble")
+        result.assertTasksExecuted(tasks(':hello').debug.allToCreate, tasks(':app').debug.allToInstall, ':app:assemble')
         executable("app/build/exe/main/debug/app").assertExists()
         staticLibrary("hello/build/lib/main/debug/hello").assertExists()
         def installation = installation("app/build/install/main/debug")
@@ -631,7 +633,7 @@ class CppApplicationIntegrationTest extends AbstractCppIntegrationTest implement
         expect:
         succeeds ":app:assemble"
 
-        result.assertTasksExecuted(compileAndLinkTasks([':hello'], debugShared), compileAndLinkTasks([':app'], debug), installTaskDebug(':app'), ":app:assemble")
+        result.assertTasksExecuted(tasks(':hello').withBuildType(debugShared).allToLink, tasks(':app').debug.allToInstall, ":app:assemble")
         executable("app/build/exe/main/debug/app").assertExists()
         sharedLibrary("hello/build/lib/main/debug/shared/hello").assertExists()
         def installation = installation("app/build/install/main/debug")
@@ -719,7 +721,7 @@ class CppApplicationIntegrationTest extends AbstractCppIntegrationTest implement
         expect:
         succeeds ":app:assemble"
 
-        result.assertTasksExecuted(compileAndLinkTasks([':card', ':deck', ':shuffle', ':app'], debug), installTaskDebug(':app'), ":app:assemble")
+        result.assertTasksExecuted([':card', ':deck', ':shuffle'].collect { tasks(it).debug.allToLink }, tasks(':app').debug.allToInstall, ":app:assemble")
         sharedLibrary("deck/build/lib/main/debug/deck").assertExists()
         sharedLibrary("card/build/lib/main/debug/card").assertExists()
         sharedLibrary("shuffle/build/lib/main/debug/shuffle").assertExists()
@@ -766,7 +768,7 @@ class CppApplicationIntegrationTest extends AbstractCppIntegrationTest implement
         expect:
         succeeds ":app:assemble"
 
-        result.assertTasksExecuted(compileAndStaticLinkTasks([':card', ':deck', ':shuffle'], debug), compileAndLinkTasks([':app'], debug), installTaskDebug(':app'), ":app:assemble")
+        result.assertTasksExecuted([':card', ':deck', ':shuffle'].collect { tasks(it).debug.allToCreate }, tasks(':app').debug.allToInstall, ":app:assemble")
         staticLibrary("deck/build/lib/main/debug/deck").assertExists()
         staticLibrary("card/build/lib/main/debug/card").assertExists()
         staticLibrary("shuffle/build/lib/main/debug/shuffle").assertExists()
@@ -806,7 +808,7 @@ class CppApplicationIntegrationTest extends AbstractCppIntegrationTest implement
         expect:
         succeeds ":app:assemble"
 
-        result.assertTasksExecuted(compileAndLinkTasks([':lib1', ':lib2', ':app'], debug), installTaskDebug(':app'), ":app:assemble")
+        result.assertTasksExecuted([':lib1', ':lib2'].collect { tasks(it).debug.allToLink }, tasks(':app').debug.allToInstall, ":app:assemble")
 
         !file("lib2/build").exists()
         sharedLibrary("lib1/build/lib/main/debug/lib1").assertExists()
@@ -853,7 +855,7 @@ class CppApplicationIntegrationTest extends AbstractCppIntegrationTest implement
         expect:
         succeeds ":app:assemble"
 
-        result.assertTasksExecuted(compileAndLinkTasks([':lib1', ':lib2', ':app'], debug), installTaskDebug(':app'), ":app:assemble")
+        result.assertTasksExecuted([':lib1', ':lib2'].collect { tasks(it).debug.allToLink }, tasks(':app').debug.allToInstall, ":app:assemble")
 
         file("lib2/build/shared/lib1_debug.dll").assertIsFile()
         if (toolChain.visualCpp) {
@@ -902,7 +904,7 @@ class CppApplicationIntegrationTest extends AbstractCppIntegrationTest implement
         expect:
         succeeds ":app:assemble"
 
-        result.assertTasksExecuted(compileAndLinkTasks([':lib1', ':lib2', ':app'], debug), installTaskDebug(':app'), ":app:assemble")
+        result.assertTasksExecuted([':lib1', ':lib2'].collect { tasks(it).debug.allToLink }, tasks(':app').debug.allToInstall, ":app:assemble")
 
         sharedLibrary("lib1/build/lib/main/debug/lib1").assertExists()
         sharedLibrary("lib2/build/lib/main/debug/lib2").assertExists()
@@ -951,7 +953,7 @@ class CppApplicationIntegrationTest extends AbstractCppIntegrationTest implement
 
         expect:
         succeeds ":app:assemble"
-        result.assertTasksExecuted(compileAndLinkTasks([':greeter', ":logger", ':app'], debug), installTaskDebug(':app'), ":app:assemble")
+        result.assertTasksExecuted([':greeter', ":logger"].collect { tasks(it).debug.allToLink }, tasks(':app').debug.allToInstall, ":app:assemble")
 
         sharedLibrary("greeter/build/lib/main/debug/greeter").assertExists()
         sharedLibrary("logger/build/lib/main/debug/logger").assertExists()
@@ -997,7 +999,7 @@ class CppApplicationIntegrationTest extends AbstractCppIntegrationTest implement
 
         expect:
         succeeds ":assemble"
-        result.assertTasksExecuted(compileAndLinkTasks([':lib1', ":lib2", ''], debug), installTaskDebug(), ":assemble")
+        result.assertTasksExecuted([':lib1', ":lib2"].collect { tasks(it).debug.allToLink }, tasks.debug.allToInstall, ":assemble")
         sharedLibrary("lib1/build/lib/main/debug/lib1").assertExists()
         sharedLibrary("lib2/build/lib/main/debug/lib2").assertExists()
         executable("build/exe/main/debug/app").assertExists()
@@ -1032,5 +1034,32 @@ class CppApplicationIntegrationTest extends AbstractCppIntegrationTest implement
 
         executable("build/exe/main/debug/app").assertExists()
         installation("build/install/main/debug").exec().out == app.expectedOutput(toolChain)
+    }
+
+    @Issue("https://github.com/gradle/gradle-native/issues/950")
+    def "can handle candidate header directory which happens to match an existing file"() {
+        def app = new CppApp()
+
+        given:
+        app.sources.writeToSourceDir(file('src/main/cpp'))
+        app.greeter.headers.writeToSourceDir(file('src/main/headers'))
+        app.sum.headers.writeToSourceDir(file('src/sumHeaders/foo'))
+
+        file("src/main/cpp/main.cpp").text = file("src/main/cpp/main.cpp").text.replace("sum.h", "foo/sum.h")
+        file("src/main/cpp/sum.cpp").text = file("src/main/cpp/sum.cpp").text.replace("sum.h", "foo/sum.h")
+
+        // poison file
+        file('src/main/headers/foo').createNewFile()
+
+        buildFile << """
+            apply plugin: 'cpp-application'
+            
+            application {
+                privateHeaders.from 'src/main/headers', 'src/sumHeaders'
+            }
+        """
+
+        expect:
+        succeeds "assemble"
     }
 }

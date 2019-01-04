@@ -22,8 +22,9 @@ import org.gradle.api.internal.artifacts.ivyservice.resolveengine.artifact.Resol
 import org.gradle.api.internal.tasks.TaskDependencyContainer
 import org.gradle.execution.plan.Node
 import org.gradle.execution.plan.TaskDependencyResolver
-import org.jetbrains.annotations.NotNull
 import spock.lang.Specification
+
+import javax.annotation.Nonnull
 
 class TransformationNodeSpec extends Specification {
 
@@ -109,7 +110,7 @@ class TransformationNodeSpec extends Specification {
         }
 
         @Override
-        int compareTo(@NotNull Node o) {
+        int compareTo(@Nonnull Node o) {
             return 0
         }
     }
